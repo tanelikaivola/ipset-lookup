@@ -1,3 +1,4 @@
+
 use glob::glob;
 use std::path::PathBuf;
 use std::collections::HashMap;
@@ -7,6 +8,7 @@ use std::net::Ipv4Addr;
 use ipnetwork::Ipv4Network;
 use std::iter::FromIterator;
 use rayon::prelude::*;
+use clap::{Arg, ArgGroup, App, SubCommand, crate_version, crate_authors, ArgMatches};
 
 trait Lookup {
     fn lookup_by_ip(&self, ip:&Ipv4Addr) -> bool;
@@ -93,56 +95,65 @@ fn test_sanity() {
     assert!(rawips.lookup_by_ip(&ip), "lookup_by_ip is not eq");
 
     assert!(ipsets.lookup_by_str("8.8.8.8").len()>0, "lookup_by_ip is not eq");
-
 }
 
-// #[test]
-fn test_speed() {
+fn test_speed(m : &ArgMatches) {
+    let globfiles;
+    if m.is_present("glob") {
+        globfiles = m.value_of("glob").unwrap();
+    } else {
+        globfiles = "blocklist-ipsets/**/*.*set";
+    }
+
     use std::time::Instant;
     let now = Instant::now();
-    let ipsets = LookupSets::new("blocklist-ipsets/**/*.*set");
-    println!("{} s loading", now.elapsed().as_secs_f64());
+    let ipsets = LookupSets::new(globfiles);
+    println!("{:.3} s loading", now.elapsed().as_secs_f64());
+    let categories = ipsets.lookup_by_net(&("0.0.0.0/0".parse().unwrap()));
+    println!("Loaded {} categories", categories.len());
+
     
-    let ip : Ipv4Addr = "64.135.235.144".parse().expect("Invalid IP");
+    let ip0 : Ipv4Addr = "0.0.0.0".parse().expect("Invalid IP");
     let net : Ipv4Network = "64.135.235.144/31".parse().expect("Invalid network");
     let net0 : Ipv4Network = "0.0.0.0/0".parse().expect("Invalid network");
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
-        ipsets.lookup_by_ip(&ip)
+        ipsets.lookup_by_ip(&ip0)
     ).collect();
-    println!("{} ms / ip lookup", now.elapsed().as_secs_f64()/100.0*1000.0);
+    println!("{:.3} ms / ip lookup", now.elapsed().as_secs_f64()/100.0*1000.0);
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
         ipsets.lookup_by_net(&net)
     ).collect();
-    println!("{} ms / network lookup (maybe worst case)", now.elapsed().as_secs_f64()/100.0*1000.0);
+    println!("{:.3} ms / network lookup (maybe worst case)", now.elapsed().as_secs_f64()/100.0*1000.0);
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
         ipsets.lookup_by_net(&net0)
     ).collect();
-    println!("{} ms / network lookup (best case)", now.elapsed().as_secs_f64()/100.0*1000.0);    
+    println!("{:.3} ms / network lookup (best case)", now.elapsed().as_secs_f64()/100.0*1000.0);    
 }
 
-extern crate clap;
-use clap::{Arg, ArgGroup, App, SubCommand, crate_version, crate_authors};
-
-fn main() {
-    let app = App::new("ipset-lookup")
-        .about("Fast lookup through ipset data")
-        .version(crate_version!())
-        .author(crate_authors!())
+fn app_params<'a,'b>() -> App<'a, 'b> {
+    App::new("ipset-lookup")
+    .about("Fast lookup through ipset data")
+    .version(crate_version!())
+    .author(crate_authors!())
+    .arg(Arg::with_name("glob").group("input")
+        .long("glob")
+        .short("g")
+        .takes_value(true)
+        .empty_values(false)
+        .global(true)
+        .help("input ipset/netset files, glob syntax (defaults to: blocklist-ipsets/**/*.*set)"))
+    .subcommand(SubCommand::with_name("lookup")
+        .about("run a lookup")
         .group(ArgGroup::with_name("input"))
-        .group(ArgGroup::with_name("find").multiple(true))
+        .group(ArgGroup::with_name("find").multiple(true).required(true))
         .group(ArgGroup::with_name("output"))
-        .arg(Arg::with_name("glob").group("input")
-            .long("glob")
-            .short("g")
-            .takes_value(true)
-            .empty_values(false)
-            .help("input ipset/netset files, glob syntax (defaults to: blocklist-ipsets/**/*.*set)"))
+
         .arg(Arg::with_name("file").group("find")
             .long("file")
             .short("f")
@@ -163,52 +174,51 @@ fn main() {
             .takes_value(true)
             .multiple(true)
             .empty_values(false)
-            .help("compare to a net"))
-        .arg(Arg::with_name("bench")
-            .long("bench")
-            .takes_value(false)
-            .conflicts_with("find")
-            .conflicts_with("file")
-            .conflicts_with("ip")
-            .conflicts_with("net")
-            .help("run benchmark"));
+            .help("compare to a net")))
+    .subcommand(SubCommand::with_name("bench")
+        .about("run a quick benchmark"))    
+}
+
+fn main() {
+    let app = app_params();
 
     let m = app.get_matches();
-//    println!("{:?}", m);
+    println!("{:?}", m);
 
-    if m.is_present("bench") {
-        test_speed()
-    }
-
-    let glob;
-
+    let globfiles;
     if m.is_present("glob") {
-        glob = m.value_of("glob").unwrap();
+        globfiles = m.value_of("glob").unwrap();
     } else {
-        glob = "blocklist-ipsets/**/*.*set";
+        globfiles = "blocklist-ipsets/**/*.*set";
     }
 
-    let ipsets = LookupSets::new(glob);
+    match m.subcommand() {
+        ("lookup",  Some(sub_m)) => {
+            let ipsets = LookupSets::new(globfiles);
 
-    if m.is_present("file") {
-        let files: Vec<_> = m.values_of("file").unwrap().collect();
-        unimplemented!("file handling not implemented");
-    }
-    if m.is_present("ip") {
-        let ips: Vec<_> = m.values_of("ip").unwrap().collect();
-        let ips: Vec<Ipv4Addr> = ips.iter().map(|ip| ip.parse().expect("invalid ip address")).collect();
-        for ip in ips {
-            let result = ipsets.lookup_by_ip(&ip);
-            println!("{} {:?}", ip, result);
-        }
-    }
-    if m.is_present("net") {
-        let nets: Vec<_> = m.values_of("net").unwrap().collect();
-        let nets: Vec<Ipv4Network> = nets.iter().map(|ip| ip.parse().expect("invalid net")).collect();
-        for net in nets {
-            let result = ipsets.lookup_by_net(&net);
-            println!("{} {:?}", net, result);
-        }
+            if sub_m.is_present("file") {
+                let files: Vec<_> = sub_m.values_of("file").unwrap().collect();
+                unimplemented!("file handling not implemented");
+            }
+            if sub_m.is_present("ip") {
+                let ips: Vec<_> = sub_m.values_of("ip").unwrap().collect();
+                let ips: Vec<Ipv4Addr> = ips.iter().map(|ip| ip.parse().expect("invalid ip address")).collect();
+                for ip in ips {
+                    let result = ipsets.lookup_by_ip(&ip);
+                    println!("{} {:?}", ip, result);
+                }
+            }
+            if sub_m.is_present("net") {
+                let nets: Vec<_> = sub_m.values_of("net").unwrap().collect();
+                let nets: Vec<Ipv4Network> = nets.iter().map(|ip| ip.parse().expect("invalid net")).collect();
+                for net in nets {
+                    let result = ipsets.lookup_by_net(&net);
+                    println!("{} {:?}", net, result);
+                }
+            }
+        },
+        ("bench",   Some(sub_m)) => {test_speed(&sub_m)},
+        _                       => {},
     }
 
 }
