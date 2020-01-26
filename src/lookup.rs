@@ -66,6 +66,7 @@ impl LookupSets {
         output.sort();
         output
     }
+    #[allow(dead_code)]
     pub fn lookup_by_str(&self, ip:&str) -> Vec<&String> {
         let ip : Ipv4Addr = ip.parse().expect("invalid ip address");
         self.lookup_by_ip(&ip)
