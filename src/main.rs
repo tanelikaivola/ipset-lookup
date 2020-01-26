@@ -1,6 +1,8 @@
 use std::net::Ipv4Addr;
 use ipnetwork::Ipv4Network;
 use clap::{Arg, ArgGroup, App, SubCommand, crate_version, crate_authors};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 mod lookup;
 use crate::lookup::LookupSets;
@@ -67,7 +69,21 @@ fn main() {
 
             if sub_m.is_present("file") {
                 let files: Vec<_> = sub_m.values_of("file").unwrap().collect();
-                unimplemented!("file handling not implemented");
+                for path in files {
+                    let file = File::open(path).unwrap();
+                    let buffered = BufReader::new(file);
+                    let data = buffered.lines().map(
+                        |l| l.unwrap()
+                    ).filter(
+                        |l| ! l.starts_with("#")
+                    ).map(
+                        |l| l.parse().expect("invalid ip")
+                    );
+                    for ip in data {
+                        let result = ipsets.lookup_by_ip(&ip);
+                        println!("{} {:?}", ip, result);
+                    }
+                }
             }
             if sub_m.is_present("ip") {
                 let ips: Vec<_> = sub_m.values_of("ip").unwrap().collect();
