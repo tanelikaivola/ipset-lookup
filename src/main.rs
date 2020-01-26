@@ -54,7 +54,7 @@ fn main() {
     let app = app_params();
 
     let m = app.get_matches();
-    println!("{:?}", m);
+//    println!("{:?}", m);
 
     let globfiles;
     if m.is_present("glob") {
