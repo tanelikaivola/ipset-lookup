@@ -80,3 +80,50 @@ impl LookupSets {
         output
     }
 }
+
+
+#[test]
+fn test_sanity() {
+    let ipsets = LookupSets::new("blocklist-ipsets/**/*.*set");
+    let ip : Ipv4Addr = "8.8.8.8".parse().expect("Invalid IP");
+    ipsets.lookup_by_ip(&ip);
+
+    let mut rawips : Vec<Ipv4Addr> = Vec::new();
+    rawips.insert(0, "8.8.8.8".parse().unwrap());
+    let ip : Ipv4Addr = "8.8.8.8".parse().unwrap();
+    assert!(rawips.lookup_by_ip(&ip), "lookup_by_ip is not eq");
+
+    assert!(ipsets.lookup_by_str("8.8.8.8").len()>0, "lookup_by_ip is not eq");
+}
+
+pub fn test_speed(glob : &str) {
+    use std::time::Instant;
+    let now = Instant::now();
+    let ipsets = LookupSets::new(glob);
+    println!("{:.3} s loading", now.elapsed().as_secs_f64());
+    let categories = ipsets.lookup_by_net(&("0.0.0.0/0".parse().unwrap()));
+    println!("Loaded {} categories", categories.len());
+
+    
+    let ip0 : Ipv4Addr = "0.0.0.0".parse().expect("Invalid IP");
+    let net : Ipv4Network = "64.135.235.144/31".parse().expect("Invalid network");
+    let net0 : Ipv4Network = "0.0.0.0/0".parse().expect("Invalid network");
+
+    let now = Instant::now();
+    let _x : Vec<_> = (1..100).map(|_x|
+        ipsets.lookup_by_ip(&ip0)
+    ).collect();
+    println!("{:.3} ms / ip lookup", now.elapsed().as_secs_f64()/100.0*1000.0);
+
+    let now = Instant::now();
+    let _x : Vec<_> = (1..100).map(|_x|
+        ipsets.lookup_by_net(&net)
+    ).collect();
+    println!("{:.3} ms / network lookup (maybe worst case)", now.elapsed().as_secs_f64()/100.0*1000.0);
+
+    let now = Instant::now();
+    let _x : Vec<_> = (1..100).map(|_x|
+        ipsets.lookup_by_net(&net0)
+    ).collect();
+    println!("{:.3} ms / network lookup (best case)", now.elapsed().as_secs_f64()/100.0*1000.0);    
+}
