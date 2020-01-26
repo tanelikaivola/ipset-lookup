@@ -58,11 +58,11 @@ impl LookupSets {
         LookupSets {data: HashMap::from_iter(ipsetiter)}
     }
     pub fn lookup_by_ip(&self, ip:&Ipv4Addr) -> Vec<&String> {
-        let mut output = self.data.par_iter().filter(
+        let mut output : Vec<_> = self.data.par_iter().filter(
             |(_, nets)| nets.lookup_by_ip(ip)
         ).map(
             |(name, _)| name
-        ).collect::<Vec<_>>();
+        ).collect();
         output.sort();
         output
     }
@@ -71,11 +71,11 @@ impl LookupSets {
         self.lookup_by_ip(&ip)
     }
     pub fn lookup_by_net(&self, other:&Ipv4Network) -> Vec<&String> {
-        let mut output = self.data.par_iter().filter(
+        let mut output : Vec<_> = self.data.par_iter().filter(
             |(_, nets)| nets.iter().any(|net| net.overlaps(*other))
         ).map(
             |(name, _)| name
-        ).collect::<Vec<_>>();
+        ).collect();
         output.sort();
         output
     }
