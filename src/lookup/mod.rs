@@ -1,10 +1,10 @@
+#![allow(dead_code)]
+
 use glob::glob;
 use ipnetwork::Ipv4Network;
 use rayon::prelude::*;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::iter::FromIterator;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
@@ -28,23 +28,36 @@ fn glob_vec(pattern: &str) -> Vec<PathBuf> {
     glob(pattern).unwrap().map(|r| r.unwrap()).collect()
 }
 
-fn parse_file(path: &std::path::PathBuf) -> (String, Vec<Ipv4Network>) {
+struct NetSet {
+    name: String,
+    category: String,
+    nets: Vec<Ipv4Network>
+}
+
+fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
 
     let file = File::open(path).unwrap();
     let buffered = BufReader::new(file);
-    let data: Vec<Ipv4Network> = buffered
-        .lines()
+    let mut lines = buffered.lines();
+    let comments : Vec<_> = lines.by_ref()
+        .map(|l| l.unwrap())
+        .take_while(|l| l.starts_with('#'))
+        .filter(|l| l.starts_with("# Category        : "))
+        .map(|l| l.replace("# Category        : ",""))
+        .collect();
+    let category = String::from(&comments[0]);
+    let data : Vec<Ipv4Network> = lines.by_ref()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'))
         .map(|l| l.parse().unwrap())
         .collect();
 
-    (stem, data)
+    NetSet {name: stem, category: category, nets: data}
 }
 
 pub struct LookupSets {
-    data: HashMap<String, Vec<Ipv4Network>>,
+    data: Vec<NetSet>,
 }
 
 impl LookupSets {
@@ -56,15 +69,15 @@ impl LookupSets {
             .map(|path| parse_file(&path.to_path_buf()))
             .collect();
         LookupSets {
-            data: HashMap::from_iter(ipsetiter),
+            data: ipsetiter,
         }
     }
     pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&String> {
         let mut output: Vec<_> = self
             .data
             .par_iter()
-            .filter(|(_, nets)| nets.lookup_by_ip(ip))
-            .map(|(name, _)| name)
+            .filter(|netset| netset.nets.lookup_by_ip(ip))
+            .map(|netset| &netset.name)
             .collect();
         output.sort();
         output
@@ -78,8 +91,8 @@ impl LookupSets {
         let mut output: Vec<_> = self
             .data
             .par_iter()
-            .filter(|(_, nets)| nets.iter().any(|net| net.overlaps(other)))
-            .map(|(name, _)| name)
+            .filter(|netset| netset.nets.iter().any(|net| net.overlaps(other)))
+            .map(|netset| &netset.name)
             .collect();
         output.sort();
         output
