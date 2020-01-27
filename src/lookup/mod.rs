@@ -36,7 +36,7 @@ fn parse_file(path : &std::path::PathBuf) -> (String, Vec<Ipv4Network>) {
     let data : Vec<Ipv4Network> = buffered.lines().map(
         |l| l.unwrap()
     ).filter(
-        |l| ! l.starts_with("#")
+        |l| ! l.starts_with('#')
     ).map(
         |l| l.parse().unwrap()
     ).collect();

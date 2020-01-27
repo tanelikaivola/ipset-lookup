@@ -56,12 +56,7 @@ fn main() {
     let m = app.get_matches();
 //    println!("{:?}", m);
 
-    let globfiles;
-    if m.is_present("glob") {
-        globfiles = m.value_of("glob").unwrap();
-    } else {
-        globfiles = "blocklist-ipsets/**/*.*set";
-    }
+    let globfiles = if m.is_present("glob") { m.value_of("glob").unwrap() } else { "blocklist-ipsets/**/*.*set" };
 
     match m.subcommand() {
         ("lookup",  Some(sub_m)) => {
@@ -75,7 +70,7 @@ fn main() {
                     let data = buffered.lines().map(
                         |l| l.unwrap()
                     ).filter(
-                        |l| ! l.starts_with("#")
+                        |l| ! l.starts_with('#')
                     ).map(
                         |l| l.parse().expect("invalid ip")
                     );
