@@ -30,25 +30,10 @@ fn glob_vec(pattern: &str) -> Vec<PathBuf> {
     glob(pattern).unwrap().map(|r| r.unwrap()).collect()
 }
 
-#[derive(Eq)]
+#[derive(Eq, PartialEq, Ord, PartialOrd)]
 pub struct NetSetFeed {
-    name: String,
     category: String,
-}
-impl Ord for NetSetFeed {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.category.cmp(&other.category).then(self.name.cmp(&other.name))
-    }
-}
-impl PartialOrd for NetSetFeed {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.category.cmp(&other.category).then(self.name.cmp(&other.name)))
-    }
-}
-impl PartialEq for NetSetFeed {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
-    }
+    name: String,
 }
 impl fmt::Debug for NetSetFeed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
