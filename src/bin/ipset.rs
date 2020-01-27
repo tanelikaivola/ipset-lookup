@@ -4,8 +4,8 @@ use clap::{Arg, ArgGroup, App, SubCommand, crate_version, crate_authors};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
-mod lookup;
-use crate::lookup::LookupSets;
+extern crate ipset_lookup;
+use crate::ipset_lookup::lookup::{LookupSets,test_speed};
 
 fn app_params<'a,'b>() -> App<'a, 'b> {
     App::new("ipset-lookup")
@@ -102,7 +102,7 @@ fn main() {
                 }
             }
         },
-        ("bench",   Some(_)) => {lookup::test_speed(globfiles)},
+        ("bench",   Some(_)) => {test_speed(globfiles)},
         _                       => {},
     }
 }
