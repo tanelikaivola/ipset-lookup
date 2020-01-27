@@ -7,7 +7,6 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
-use std::cmp::Ordering;
 use std::fmt;
 
 pub trait Lookup {
@@ -126,11 +125,6 @@ fn test_sanity() {
     rawips.insert(0, "8.8.8.8".parse().unwrap());
     let ip: Ipv4Addr = "8.8.8.8".parse().unwrap();
     assert!(rawips.lookup_by_ip(ip), "lookup_by_ip is not eq");
-
-    assert!(
-        ipsets.lookup_by_str("8.8.8.8").len() > 0,
-        "lookup_by_ip is not eq"
-    );
 }
 
 #[cfg(feature = "bench")]
