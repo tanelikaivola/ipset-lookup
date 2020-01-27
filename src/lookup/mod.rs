@@ -42,11 +42,21 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let mut lines = buffered.lines();
     let comments : Vec<_> = lines.by_ref()
         .map(|l| l.unwrap())
-        .take_while(|l| l.starts_with('#'))
+        .take_while(|l| l.starts_with("#"))
         .filter(|l| l.starts_with("# Category        : "))
-        .map(|l| l.replace("# Category        : ",""))
+        .map(|l| l.replace("# Category        : ", ""))
         .collect();
-    let category = String::from(&comments[0]);
+    let category : String = if comments.len() == 1 {
+        String::from(&comments[0])
+    } else {
+        println!("failed to find category {}", comments.len());
+        String::from("other")
+    };
+
+    // reinitialize the reader (FIXME)
+    let file = File::open(path).unwrap();
+    let buffered = BufReader::new(file);
+    let mut lines = buffered.lines();
     let data : Vec<Ipv4Network> = lines.by_ref()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'))
