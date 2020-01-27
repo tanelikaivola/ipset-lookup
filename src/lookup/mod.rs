@@ -103,6 +103,7 @@ fn test_sanity() {
     );
 }
 
+#[cfg(feature = "bench")]
 pub fn test_speed(glob: &str) {
     use std::time::Instant;
     let now = Instant::now();

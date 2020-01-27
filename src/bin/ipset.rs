@@ -5,10 +5,14 @@ use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 
 extern crate ipset_lookup;
-use crate::ipset_lookup::lookup::{test_speed, LookupSets};
+use crate::ipset_lookup::lookup::LookupSets;
+
+#[cfg(feature = "bench")]
+use crate::ipset_lookup::lookup::test_speed;
 
 fn app_params<'a, 'b>() -> App<'a, 'b> {
-    App::new("ipset-lookup")
+    #[allow(unused_mut)]
+    let mut app = App::new("ipset-lookup")
     .about("Fast lookup through ipset data")
     .version(crate_version!())
     .author(crate_authors!())
@@ -24,7 +28,6 @@ fn app_params<'a, 'b>() -> App<'a, 'b> {
         .group(ArgGroup::with_name("input"))
         .group(ArgGroup::with_name("find").multiple(true).required(true))
         .group(ArgGroup::with_name("output"))
-
         .arg(Arg::with_name("file").group("find")
             .long("file")
             .short("f")
@@ -45,9 +48,14 @@ fn app_params<'a, 'b>() -> App<'a, 'b> {
             .takes_value(true)
             .multiple(true)
             .empty_values(false)
-            .help("compare to a net")))
-    .subcommand(SubCommand::with_name("bench")
-        .about("run a quick benchmark"))
+            .help("compare to a net")));
+
+    #[cfg(feature = "bench")]
+    {
+        app = app.subcommand(SubCommand::with_name("bench").about("run a quick benchmark"));
+    }
+
+    app
 }
 
 fn main() {
@@ -105,6 +113,7 @@ fn main() {
                 }
             }
         }
+        #[cfg(feature = "bench")]
         ("bench", Some(_)) => test_speed(globfiles),
         _ => {}
     }
