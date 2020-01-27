@@ -3,11 +3,11 @@
 use glob::glob;
 use ipnetwork::Ipv4Network;
 use rayon::prelude::*;
+use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
-use std::fmt;
 
 pub trait Lookup {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool;
@@ -42,7 +42,7 @@ impl fmt::Debug for NetSetFeed {
 
 struct NetSet {
     feed: NetSetFeed,
-    nets: Vec<Ipv4Network>
+    nets: Vec<Ipv4Network>,
 }
 
 fn parse_file(path: &std::path::PathBuf) -> NetSet {
@@ -51,13 +51,14 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let file = File::open(path).unwrap();
     let buffered = BufReader::new(file);
     let mut lines = buffered.lines();
-    let comments : Vec<_> = lines.by_ref()
+    let comments: Vec<_> = lines
+        .by_ref()
         .map(|l| l.unwrap())
         .take_while(|l| l.starts_with("#"))
         .filter(|l| l.starts_with("# Category        : "))
         .map(|l| l.replace("# Category        : ", ""))
         .collect();
-    let category : String = if comments.len() == 1 {
+    let category: String = if comments.len() == 1 {
         String::from(&comments[0])
     } else {
         println!("failed to find category {}", comments.len());
@@ -68,13 +69,20 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let file = File::open(path).unwrap();
     let buffered = BufReader::new(file);
     let mut lines = buffered.lines();
-    let data : Vec<Ipv4Network> = lines.by_ref()
+    let data: Vec<Ipv4Network> = lines
+        .by_ref()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'))
         .map(|l| l.parse().unwrap())
         .collect();
 
-    NetSet { feed: NetSetFeed { name: stem, category: category }, nets: data}
+    NetSet {
+        feed: NetSetFeed {
+            name: stem,
+            category: category,
+        },
+        nets: data,
+    }
 }
 
 pub struct LookupSets {
@@ -89,16 +97,14 @@ impl LookupSets {
             .par_iter()
             .map(|path| parse_file(&path.to_path_buf()))
             .collect();
-        LookupSets {
-            data: ipsetiter,
-        }
+        LookupSets { data: ipsetiter }
     }
     pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&NetSetFeed> {
         let mut output: Vec<_> = self
             .data
             .par_iter()
             .filter(|netset| netset.nets.lookup_by_ip(ip))
-            .map(|netset| &netset.feed )
+            .map(|netset| &netset.feed)
             .collect();
         output.sort();
         output
