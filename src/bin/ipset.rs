@@ -1,13 +1,13 @@
-use std::net::Ipv4Addr;
+use clap::{crate_authors, crate_version, App, Arg, ArgGroup, SubCommand};
 use ipnetwork::Ipv4Network;
-use clap::{Arg, ArgGroup, App, SubCommand, crate_version, crate_authors};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::net::Ipv4Addr;
 
 extern crate ipset_lookup;
-use crate::ipset_lookup::lookup::{LookupSets,test_speed};
+use crate::ipset_lookup::lookup::{test_speed, LookupSets};
 
-fn app_params<'a,'b>() -> App<'a, 'b> {
+fn app_params<'a, 'b>() -> App<'a, 'b> {
     App::new("ipset-lookup")
     .about("Fast lookup through ipset data")
     .version(crate_version!())
@@ -47,19 +47,23 @@ fn app_params<'a,'b>() -> App<'a, 'b> {
             .empty_values(false)
             .help("compare to a net")))
     .subcommand(SubCommand::with_name("bench")
-        .about("run a quick benchmark"))    
+        .about("run a quick benchmark"))
 }
 
 fn main() {
     let app = app_params();
 
     let m = app.get_matches();
-//    println!("{:?}", m);
+    //    println!("{:?}", m);
 
-    let globfiles = if m.is_present("glob") { m.value_of("glob").unwrap() } else { "blocklist-ipsets/**/*.*set" };
+    let globfiles = if m.is_present("glob") {
+        m.value_of("glob").unwrap()
+    } else {
+        "blocklist-ipsets/**/*.*set"
+    };
 
     match m.subcommand() {
-        ("lookup",  Some(sub_m)) => {
+        ("lookup", Some(sub_m)) => {
             let ipsets = LookupSets::new(globfiles);
 
             if sub_m.is_present("file") {
@@ -67,13 +71,11 @@ fn main() {
                 for path in files {
                     let file = File::open(path).unwrap();
                     let buffered = BufReader::new(file);
-                    let data = buffered.lines().map(
-                        |l| l.unwrap()
-                    ).filter(
-                        |l| ! l.starts_with('#')
-                    ).map(
-                        |l| l.parse().expect("invalid ip")
-                    );
+                    let data = buffered
+                        .lines()
+                        .map(|l| l.unwrap())
+                        .filter(|l| !l.starts_with('#'))
+                        .map(|l| l.parse().expect("invalid ip"));
                     for ip in data {
                         let result = ipsets.lookup_by_ip(ip);
                         println!("{} {:?}", ip, result);
@@ -82,7 +84,10 @@ fn main() {
             }
             if sub_m.is_present("ip") {
                 let ips: Vec<_> = sub_m.values_of("ip").unwrap().collect();
-                let ips: Vec<Ipv4Addr> = ips.iter().map(|ip| ip.parse().expect("invalid ip address")).collect();
+                let ips: Vec<Ipv4Addr> = ips
+                    .iter()
+                    .map(|ip| ip.parse().expect("invalid ip address"))
+                    .collect();
                 for ip in ips {
                     let result = ipsets.lookup_by_ip(ip);
                     println!("{} {:?}", ip, result);
@@ -90,14 +95,17 @@ fn main() {
             }
             if sub_m.is_present("net") {
                 let nets: Vec<_> = sub_m.values_of("net").unwrap().collect();
-                let nets: Vec<Ipv4Network> = nets.iter().map(|ip| ip.parse().expect("invalid net")).collect();
+                let nets: Vec<Ipv4Network> = nets
+                    .iter()
+                    .map(|ip| ip.parse().expect("invalid net"))
+                    .collect();
                 for net in nets {
                     let result = ipsets.lookup_by_net(net);
                     println!("{} {:?}", net, result);
                 }
             }
-        },
-        ("bench",   Some(_)) => {test_speed(globfiles)},
-        _                       => {},
+        }
+        ("bench", Some(_)) => test_speed(globfiles),
+        _ => {}
     }
 }
