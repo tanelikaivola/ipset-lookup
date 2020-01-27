@@ -1,3 +1,5 @@
+#[cfg(feature = "update")]
+use clap::ArgMatches;
 use clap::{crate_authors, crate_version, App, Arg, ArgGroup, SubCommand};
 use ipnetwork::Ipv4Network;
 use std::fs::File;
@@ -55,7 +57,31 @@ fn app_params<'a, 'b>() -> App<'a, 'b> {
         app = app.subcommand(SubCommand::with_name("bench").about("run a quick benchmark"));
     }
 
+    #[cfg(feature = "update")]
+    {
+        app = app.subcommand(SubCommand::with_name("update").about("update ipsets"));
+    }
+
     app
+}
+
+#[cfg(feature = "update")]
+fn update_command(_: &ArgMatches) {
+    use git2::Repository;
+
+    let url = "https://github.com/firehol/blocklist-ipsets.git";
+    let repo = match Repository::open("blocklist-ipsets") {
+        Ok(repo) => repo,
+        Err(e1) => match Repository::clone(url, "blocklist-ipsets") {
+            Ok(repo) => repo,
+            Err(e2) => panic!("failed to clone: {} and {}", e1, e2),
+        },
+    };
+
+    match repo.checkout_head(None) {
+        Ok(_) => {}
+        Err(e) => panic!("git checkout error: {}", e),
+    };
 }
 
 fn main() {
@@ -115,6 +141,8 @@ fn main() {
         }
         #[cfg(feature = "bench")]
         ("bench", Some(_)) => test_speed(globfiles),
+        #[cfg(feature = "update")]
+        ("update", Some(sub_m)) => update_command(sub_m),
         _ => {}
     }
 }
