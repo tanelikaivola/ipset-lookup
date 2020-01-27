@@ -9,18 +9,18 @@ use std::iter::FromIterator;
 use rayon::prelude::*;
 
 pub trait Lookup {
-    fn lookup_by_ip(&self, ip:&Ipv4Addr) -> bool;
+    fn lookup_by_ip(&self, ip:Ipv4Addr) -> bool;
 }
 
 impl Lookup for Vec<Ipv4Network> {
-    fn lookup_by_ip(&self, ip:&Ipv4Addr) -> bool {
-        self.iter().any(|net| net.contains(*ip))
+    fn lookup_by_ip(&self, ip:Ipv4Addr) -> bool {
+        self.iter().any(|net| net.contains(ip))
     }
 }
 
 impl Lookup for Vec<Ipv4Addr> {
-    fn lookup_by_ip(&self, ip:&Ipv4Addr) -> bool {
-        self.iter().any(|other| other == ip)
+    fn lookup_by_ip(&self, ip:Ipv4Addr) -> bool {
+        self.iter().any(|other| *other == ip)
     }
 }
 
@@ -57,7 +57,7 @@ impl LookupSets {
         ).collect();
         LookupSets {data: HashMap::from_iter(ipsetiter)}
     }
-    pub fn lookup_by_ip(&self, ip:&Ipv4Addr) -> Vec<&String> {
+    pub fn lookup_by_ip(&self, ip:Ipv4Addr) -> Vec<&String> {
         let mut output : Vec<_> = self.data.par_iter().filter(
             |(_, nets)| nets.lookup_by_ip(ip)
         ).map(
@@ -69,11 +69,11 @@ impl LookupSets {
     #[allow(dead_code)]
     pub fn lookup_by_str(&self, ip:&str) -> Vec<&String> {
         let ip : Ipv4Addr = ip.parse().expect("invalid ip address");
-        self.lookup_by_ip(&ip)
+        self.lookup_by_ip(ip)
     }
-    pub fn lookup_by_net(&self, other:&Ipv4Network) -> Vec<&String> {
+    pub fn lookup_by_net(&self, other:Ipv4Network) -> Vec<&String> {
         let mut output : Vec<_> = self.data.par_iter().filter(
-            |(_, nets)| nets.iter().any(|net| net.overlaps(*other))
+            |(_, nets)| nets.iter().any(|net| net.overlaps(other))
         ).map(
             |(name, _)| name
         ).collect();
@@ -102,7 +102,7 @@ pub fn test_speed(glob : &str) {
     let now = Instant::now();
     let ipsets = LookupSets::new(glob);
     println!("{:.3} s loading", now.elapsed().as_secs_f64());
-    let categories = ipsets.lookup_by_net(&("0.0.0.0/0".parse().unwrap()));
+    let categories = ipsets.lookup_by_net("0.0.0.0/0".parse().unwrap());
     println!("Loaded {} categories", categories.len());
 
     
@@ -112,19 +112,19 @@ pub fn test_speed(glob : &str) {
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
-        ipsets.lookup_by_ip(&ip0)
+        ipsets.lookup_by_ip(ip0)
     ).collect();
     println!("{:.3} ms / ip lookup", now.elapsed().as_secs_f64()/100.0*1000.0);
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
-        ipsets.lookup_by_net(&net)
+        ipsets.lookup_by_net(net)
     ).collect();
     println!("{:.3} ms / network lookup (maybe worst case)", now.elapsed().as_secs_f64()/100.0*1000.0);
 
     let now = Instant::now();
     let _x : Vec<_> = (1..100).map(|_x|
-        ipsets.lookup_by_net(&net0)
+        ipsets.lookup_by_net(net0)
     ).collect();
     println!("{:.3} ms / network lookup (best case)", now.elapsed().as_secs_f64()/100.0*1000.0);    
 }

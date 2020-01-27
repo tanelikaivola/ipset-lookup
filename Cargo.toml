@@ -1,6 +1,6 @@
 [package]
 name = "ipset_lookup"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["Taneli Kaivola <tanelikaivola@users.noreply.github.com>"]
 edition = "2018"
 

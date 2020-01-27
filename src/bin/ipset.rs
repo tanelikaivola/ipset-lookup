@@ -75,7 +75,7 @@ fn main() {
                         |l| l.parse().expect("invalid ip")
                     );
                     for ip in data {
-                        let result = ipsets.lookup_by_ip(&ip);
+                        let result = ipsets.lookup_by_ip(ip);
                         println!("{} {:?}", ip, result);
                     }
                 }
@@ -84,7 +84,7 @@ fn main() {
                 let ips: Vec<_> = sub_m.values_of("ip").unwrap().collect();
                 let ips: Vec<Ipv4Addr> = ips.iter().map(|ip| ip.parse().expect("invalid ip address")).collect();
                 for ip in ips {
-                    let result = ipsets.lookup_by_ip(&ip);
+                    let result = ipsets.lookup_by_ip(ip);
                     println!("{} {:?}", ip, result);
                 }
             }
@@ -92,7 +92,7 @@ fn main() {
                 let nets: Vec<_> = sub_m.values_of("net").unwrap().collect();
                 let nets: Vec<Ipv4Network> = nets.iter().map(|ip| ip.parse().expect("invalid net")).collect();
                 for net in nets {
-                    let result = ipsets.lookup_by_net(&net);
+                    let result = ipsets.lookup_by_net(net);
                     println!("{} {:?}", net, result);
                 }
             }
