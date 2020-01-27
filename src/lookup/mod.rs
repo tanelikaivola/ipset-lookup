@@ -7,6 +7,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
+use std::cmp::Ordering;
+use std::fmt;
 
 pub trait Lookup {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool;
@@ -28,9 +30,34 @@ fn glob_vec(pattern: &str) -> Vec<PathBuf> {
     glob(pattern).unwrap().map(|r| r.unwrap()).collect()
 }
 
-struct NetSet {
+#[derive(Eq)]
+pub struct NetSetFeed {
     name: String,
     category: String,
+}
+impl Ord for NetSetFeed {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.category.cmp(&other.category).then(self.name.cmp(&other.name))
+    }
+}
+impl PartialOrd for NetSetFeed {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.category.cmp(&other.category).then(self.name.cmp(&other.name)))
+    }
+}
+impl PartialEq for NetSetFeed {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+impl fmt::Debug for NetSetFeed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, r#""{}/{}""#, self.category, self.name)
+    }
+}
+
+struct NetSet {
+    feed: NetSetFeed,
     nets: Vec<Ipv4Network>
 }
 
@@ -63,7 +90,7 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
         .map(|l| l.parse().unwrap())
         .collect();
 
-    NetSet {name: stem, category: category, nets: data}
+    NetSet { feed: NetSetFeed { name: stem, category: category }, nets: data}
 }
 
 pub struct LookupSets {
@@ -82,27 +109,22 @@ impl LookupSets {
             data: ipsetiter,
         }
     }
-    pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&String> {
+    pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&NetSetFeed> {
         let mut output: Vec<_> = self
             .data
             .par_iter()
             .filter(|netset| netset.nets.lookup_by_ip(ip))
-            .map(|netset| &netset.name)
+            .map(|netset| &netset.feed )
             .collect();
         output.sort();
         output
     }
-    #[allow(dead_code)]
-    pub fn lookup_by_str(&self, ip: &str) -> Vec<&String> {
-        let ip: Ipv4Addr = ip.parse().expect("invalid ip address");
-        self.lookup_by_ip(ip)
-    }
-    pub fn lookup_by_net(&self, other: Ipv4Network) -> Vec<&String> {
+    pub fn lookup_by_net(&self, other: Ipv4Network) -> Vec<&NetSetFeed> {
         let mut output: Vec<_> = self
             .data
             .par_iter()
             .filter(|netset| netset.nets.iter().any(|net| net.overlaps(other)))
-            .map(|netset| &netset.name)
+            .map(|netset| &netset.feed)
             .collect();
         output.sort();
         output
