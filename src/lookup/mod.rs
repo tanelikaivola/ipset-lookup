@@ -46,7 +46,7 @@ struct NetSet {
 }
 
 fn parse_file(path: &std::path::PathBuf) -> NetSet {
-    let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
+    let name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
     let file = File::open(path).unwrap();
     let buffered = BufReader::new(file);
@@ -54,14 +54,14 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let comments: Vec<_> = lines
         .by_ref()
         .map(|l| l.unwrap())
-        .take_while(|l| l.starts_with("#"))
+        .take_while(|l| l.starts_with('#'))
         .filter(|l| l.starts_with("# Category        : "))
         .map(|l| l.replace("# Category        : ", ""))
         .collect();
     let category: String = if comments.len() == 1 {
         String::from(&comments[0])
     } else {
-//        println!("failed to find category {}", comments.len());
+        //        println!("failed to find category {}", comments.len());
         String::from("other")
     };
 
@@ -69,7 +69,7 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let file = File::open(path).unwrap();
     let buffered = BufReader::new(file);
     let mut lines = buffered.lines();
-    let data: Vec<Ipv4Network> = lines
+    let nets: Vec<Ipv4Network> = lines
         .by_ref()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'))
@@ -77,11 +77,8 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
         .collect();
 
     NetSet {
-        feed: NetSetFeed {
-            name: stem,
-            category: category,
-        },
-        nets: data,
+        feed: NetSetFeed { name, category },
+        nets,
     }
 }
 
