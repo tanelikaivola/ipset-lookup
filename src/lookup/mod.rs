@@ -61,7 +61,7 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let category: String = if comments.len() == 1 {
         String::from(&comments[0])
     } else {
-        println!("failed to find category {}", comments.len());
+//        println!("failed to find category {}", comments.len());
         String::from("other")
     };
 
