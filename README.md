@@ -51,7 +51,7 @@ The binary name for ipset-lookup is `ipset`.
 No prebuild binaries are available currently.
 
 ```
-$ cargo install --all-features ipset-lookup
+$ cargo install --all-features ipset_lookup
 ```
 
 ## Building
