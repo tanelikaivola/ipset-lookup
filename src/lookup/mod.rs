@@ -9,6 +9,8 @@ use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 
+use failure::Error;
+
 pub trait Lookup {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool;
 }
@@ -56,14 +58,13 @@ impl fmt::Debug for NetSet {
     }
 }
 
-fn parse_file(path: &std::path::PathBuf) -> NetSet {
+fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
     let name = path.file_stem().unwrap().to_str().unwrap().to_string();
 
-    let file = File::open(path).unwrap();
+    let file = File::open(path)?;
     let buffered = BufReader::new(file);
-    let mut lines = buffered.lines();
+    let lines = buffered.lines();
     let comments: Vec<_> = lines
-        .by_ref()
         .map(|l| l.unwrap())
         .take_while(|l| l.starts_with('#'))
         .filter(|l| l.starts_with("# Category        : "))
@@ -77,20 +78,20 @@ fn parse_file(path: &std::path::PathBuf) -> NetSet {
     };
 
     // reinitialize the reader (FIXME)
-    let file = File::open(path).unwrap();
+    let file = File::open(path)?;
     let buffered = BufReader::new(file);
-    let mut lines = buffered.lines();
+    let lines = buffered.lines();
     let nets: Vec<Ipv4Network> = lines
-        .by_ref()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'))
-        .map(|l| l.parse().unwrap())
+        .map(|l| l.parse())
+        .filter_map(|ip| ip.ok()) // TODO: errors ignored, collect statistics
         .collect();
 
-    NetSet {
+    Ok(NetSet {
         feed: NetSetFeed { name, category },
         nets,
-    }
+    })
 }
 
 pub struct LookupSets {
@@ -101,10 +102,15 @@ impl LookupSets {
     pub fn new(glob: &str) -> LookupSets {
         let files = glob_vec(glob);
 
-        let ipsetiter: Vec<_> = files
+        let (ipsetiter, errors): (Vec<_>, Vec<Result<_, Error>>) = files
             .par_iter()
             .map(|path| parse_file(&path.to_path_buf()))
-            .collect();
+            .partition(Result::is_ok); // TODO: errors ignored, collect statistics
+        let ipsetiter: Vec<NetSet> = ipsetiter.into_iter().map(Result::unwrap).collect();
+        let errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).collect();
+        if !errors.is_empty() {
+            eprintln!("{:?}", errors);
+        }
         LookupSets { data: ipsetiter }
     }
     pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&NetSetFeed> {

@@ -84,7 +84,7 @@ fn update_command(_: &ArgMatches) {
     };
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = app_params();
 
     let m = app.get_matches();
@@ -103,7 +103,7 @@ fn main() {
             if sub_m.is_present("file") {
                 let files: Vec<_> = sub_m.values_of("file").unwrap().collect();
                 for path in files {
-                    let file = File::open(path).unwrap();
+                    let file = File::open(path)?;
                     let buffered = BufReader::new(file);
                     let data = buffered
                         .lines()
@@ -145,4 +145,5 @@ fn main() {
         ("update", Some(sub_m)) => update_command(sub_m),
         _ => {}
     }
+    Ok(())
 }
