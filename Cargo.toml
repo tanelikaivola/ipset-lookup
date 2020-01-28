@@ -3,6 +3,16 @@ name = "ipset_lookup"
 version = "0.2.0"
 authors = ["Taneli Kaivola <tanelikaivola@users.noreply.github.com>"]
 edition = "2018"
+license = "MIT"
+homepage = "https://github.com/tanelikaivola/ipset-lookup"
+repository = "https://github.com/tanelikaivola/ipset-lookup"
+description = """
+ipset is a command-line tool that takes networks or IPs and searches through a lot of different threat feeds quickly.
+It can also download the feed data necessary to perform the queries.
+ipset_lookup includes the same functionality as a library.
+"""
+readme = "README.md"
+categories = ["command-line-utilities", "text-processing"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
