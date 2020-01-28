@@ -6,7 +6,7 @@ It can also download the feed data necessary to perform the queries.
 ipset_lookup includes the same functionality as a library.
 
 [![Crates.io](https://img.shields.io/crates/v/ipset_lookup)](https://crates.io/crates/ipset_lookup)
-[![Linux build status](https://travis-ci.org/tanelikaivola/ipset_lookup.svg)](https://travis-ci.org/tanelikaivola/ipset-lookup)
+[![Linux build Status](https://travis-ci.org/tanelikaivola/ipset-lookup.svg)](https://travis-ci.org/tanelikaivola/ipset-lookup)
 
 ### Documentation quick links
 
@@ -59,7 +59,7 @@ $ cargo install --all-features ipset_lookup
 
 ## Building
 
-[![Build Status](https://travis-ci.org/tanelikaivola/ipset-lookup.svg?branch=master)](https://travis-ci.org/tanelikaivola/ipset-lookup)
+[![Build Status](https://travis-ci.org/tanelikaivola/ipset-lookup.svg)](https://travis-ci.org/tanelikaivola/ipset-lookup)
 
 ```
 cargo build --release --all-features
