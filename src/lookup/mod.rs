@@ -44,6 +44,17 @@ struct NetSet {
     feed: NetSetFeed,
     nets: Vec<Ipv4Network>,
 }
+impl fmt::Debug for NetSet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            r#""{}/{} ({} nets)""#,
+            self.feed.category,
+            self.feed.name,
+            self.nets.len()
+        )
+    }
+}
 
 fn parse_file(path: &std::path::PathBuf) -> NetSet {
     let name = path.file_stem().unwrap().to_str().unwrap().to_string();
