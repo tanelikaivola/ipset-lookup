@@ -31,3 +31,6 @@ failure = "0.1.6"
 
 [badges]
 travis-ci = { repository = "tanelikaivola/ipset-lookup", branch = "master" }
+
+[profile.release]
+lto = true
