@@ -112,7 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .map(|l| l.parse().expect("invalid ip"));
                     for ip in data {
                         let result = ipsets.lookup_by_ip(ip);
-                        println!("{} {:?}", ip, result);
+                        println!(r#"{{"ip":"{}", feeds:{:?}}}"#, ip, result);
                     }
                 }
             }
@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .collect();
                 for ip in ips {
                     let result = ipsets.lookup_by_ip(ip);
-                    println!("{} {:?}", ip, result);
+                    println!(r#"{{"ip":"{}", feeds:{:?}}}"#, ip, result);
                 }
             }
             if sub_m.is_present("net") {
@@ -135,7 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .collect();
                 for net in nets {
                     let result = ipsets.lookup_by_net(net);
-                    println!("{} {:?}", net, result);
+                    println!(r#"{{"ip":"{}", feeds:{:?}}}"#, net, result);
                 }
             }
         }
