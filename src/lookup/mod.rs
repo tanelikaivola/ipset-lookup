@@ -13,17 +13,24 @@ use failure::Error;
 
 pub trait Lookup {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool;
+    fn lookup_by_net(&self, net: Ipv4Network) -> bool;
 }
 
 impl Lookup for Vec<Ipv4Network> {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool {
         self.iter().any(|net| net.contains(ip))
     }
+    fn lookup_by_net(&self, other: Ipv4Network) -> bool {
+        self.iter().any(|net| net.overlaps(other))
+    }
 }
 
 impl Lookup for Vec<Ipv4Addr> {
     fn lookup_by_ip(&self, ip: Ipv4Addr) -> bool {
         self.iter().any(|other| *other == ip)
+    }
+    fn lookup_by_net(&self, net: Ipv4Network) -> bool {
+        self.iter().any(|other| net.contains(*other))
     }
 }
 
@@ -45,6 +52,7 @@ impl fmt::Debug for NetSetFeed {
 struct NetSet {
     feed: NetSetFeed,
     nets: Vec<Ipv4Network>,
+    ips: Vec<Ipv4Addr>,
 }
 impl fmt::Debug for NetSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -80,10 +88,19 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
     // reinitialize the reader (FIXME)
     let file = File::open(path)?;
     let buffered = BufReader::new(file);
-    let lines = buffered.lines();
-    let nets: Vec<Ipv4Network> = lines
+    let lines = buffered
+        .lines()
         .map(|l| l.unwrap())
-        .filter(|l| !l.starts_with('#'))
+        .filter(|l| !l.starts_with('#'));
+    let (nets, ips) : (Vec<_>, Vec<_>) = lines
+        .partition(|l| l.contains('/'));
+
+    let nets: Vec<Ipv4Network> = nets.iter()
+        .map(|l| l.parse())
+        .filter_map(|ip| ip.ok()) // TODO: errors ignored, collect statistics
+        .collect();
+
+    let ips: Vec<Ipv4Addr> = ips.iter()
         .map(|l| l.parse())
         .filter_map(|ip| ip.ok()) // TODO: errors ignored, collect statistics
         .collect();
@@ -91,6 +108,7 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
     Ok(NetSet {
         feed: NetSetFeed { name, category },
         nets,
+        ips,
     })
 }
 
@@ -117,7 +135,7 @@ impl LookupSets {
         let mut output: Vec<_> = self
             .data
             .par_iter()
-            .filter(|netset| netset.nets.lookup_by_ip(ip))
+            .filter(|netset| netset.nets.lookup_by_ip(ip) || netset.ips.lookup_by_ip(ip))
             .map(|netset| &netset.feed)
             .collect();
         output.sort();
@@ -127,7 +145,7 @@ impl LookupSets {
         let mut output: Vec<_> = self
             .data
             .par_iter()
-            .filter(|netset| netset.nets.iter().any(|net| net.overlaps(other)))
+            .filter(|netset| netset.nets.lookup_by_net(other) || netset.ips.lookup_by_net(other))
             .map(|netset| &netset.feed)
             .collect();
         output.sort();
@@ -136,15 +154,34 @@ impl LookupSets {
 }
 
 #[test]
-fn test_sanity() {
+fn test_loading() {
     let ipsets = LookupSets::new("blocklist-ipsets/**/*.*set");
     let ip: Ipv4Addr = "8.8.8.8".parse().expect("Invalid IP");
-    ipsets.lookup_by_ip(ip);
+    let categories : Vec<&NetSetFeed> = ipsets.lookup_by_ip(ip);
+    assert!(!categories.is_empty(), "no results for a lookup");
+//    println!("{:?}", categories);
+}
 
-    let mut rawips: Vec<Ipv4Addr> = Vec::new();
-    rawips.insert(0, "8.8.8.8".parse().unwrap());
+#[test]
+fn test_lookups() {
+    let mut ips: Vec<Ipv4Addr> = Vec::new();
+    ips.insert(0, "8.8.8.8".parse().unwrap());
+    let mut nets: Vec<Ipv4Network> = Vec::new();
+    nets.insert(0, "8.8.8.8/8".parse().unwrap());
     let ip: Ipv4Addr = "8.8.8.8".parse().unwrap();
-    assert!(rawips.lookup_by_ip(ip), "lookup_by_ip is not eq");
+    let ip2: Ipv4Addr = "1.1.1.1".parse().unwrap();
+    let net: Ipv4Network = "8.8.8.8/8".parse().unwrap();
+    let net2: Ipv4Network = "1.1.1.1/8".parse().unwrap();
+
+    assert!(ips.lookup_by_ip(ip), "ips - lookup_by_ip is not eq");
+    assert!(!ips.lookup_by_ip(ip2), "ips - lookup_by_ip is not neq");
+    assert!(ips.lookup_by_net(net), "ips - lookup_by_net is not eq");
+    assert!(!ips.lookup_by_net(net2), "ips - lookup_by_net is not neq");
+
+    assert!(nets.lookup_by_ip(ip), "nets - lookup_by_ip is not eq");
+    assert!(nets.lookup_by_net(net), "nets - lookup_by_net is not eq");
+    assert!(!nets.lookup_by_ip(ip2), "nets - lookup_by_ip is not neq");
+    assert!(!nets.lookup_by_net(net2), "nets - lookup_by_net is not neq");
 }
 
 #[cfg(feature = "bench")]
