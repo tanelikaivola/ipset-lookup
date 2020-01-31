@@ -38,7 +38,7 @@ fn glob_vec(pattern: &str) -> Vec<PathBuf> {
     glob(pattern).unwrap().map(|r| r.unwrap()).collect()
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct NetSetFeed {
     category: String,
     name: String,
@@ -49,6 +49,7 @@ impl fmt::Debug for NetSetFeed {
     }
 }
 
+#[derive(Clone)]
 struct NetSet {
     feed: NetSetFeed,
     nets: Vec<Ipv4Network>,
@@ -112,6 +113,7 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
     })
 }
 
+#[derive(Clone)]
 pub struct LookupSets {
     data: Vec<NetSet>,
 }
