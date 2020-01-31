@@ -93,15 +93,16 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
         .lines()
         .map(|l| l.unwrap())
         .filter(|l| !l.starts_with('#'));
-    let (nets, ips) : (Vec<_>, Vec<_>) = lines
-        .partition(|l| l.contains('/'));
+    let (nets, ips): (Vec<_>, Vec<_>) = lines.partition(|l| l.contains('/'));
 
-    let nets: Vec<Ipv4Network> = nets.iter()
+    let nets: Vec<Ipv4Network> = nets
+        .iter()
         .map(|l| l.parse())
         .filter_map(|ip| ip.ok()) // TODO: errors ignored, collect statistics
         .collect();
 
-    let ips: Vec<Ipv4Addr> = ips.iter()
+    let ips: Vec<Ipv4Addr> = ips
+        .iter()
         .map(|l| l.parse())
         .filter_map(|ip| ip.ok()) // TODO: errors ignored, collect statistics
         .collect();
@@ -159,9 +160,9 @@ impl LookupSets {
 fn test_loading() {
     let ipsets = LookupSets::new("blocklist-ipsets/**/*.*set");
     let ip: Ipv4Addr = "8.8.8.8".parse().expect("Invalid IP");
-    let categories : Vec<&NetSetFeed> = ipsets.lookup_by_ip(ip);
+    let categories: Vec<&NetSetFeed> = ipsets.lookup_by_ip(ip);
     assert!(!categories.is_empty(), "no results for a lookup");
-//    println!("{:?}", categories);
+    //    println!("{:?}", categories);
 }
 
 #[test]
