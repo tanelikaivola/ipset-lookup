@@ -11,6 +11,7 @@ jobs:
   fast_finish: true
 script:
   - cargo build --verbose --all --all-features
+  - git clone https://github.com/firehol/blocklist-ipsets.git blocklist-ipsets
   - cargo test --verbose --all
 os:
   - linux
