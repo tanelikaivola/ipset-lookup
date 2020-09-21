@@ -10,9 +10,9 @@ jobs:
     - os: mac
   fast_finish: true
 script:
-  - cargo build --verbose --all --all-features
+  - cargo build --verbose --workspace
   - git clone https://github.com/firehol/blocklist-ipsets.git blocklist-ipsets
-  - cargo test --verbose --all
+  - cargo test --verbose --workspace
 os:
   - linux
   - windows
