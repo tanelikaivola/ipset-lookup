@@ -1,3 +1,4 @@
+use anyhow::Result;
 #[cfg(feature = "update")]
 use clap::ArgMatches;
 use clap::{crate_authors, crate_version, App, Arg, ArgGroup, SubCommand};
@@ -5,12 +6,22 @@ use ipnetwork::Ipv4Network;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
+use std::result::Result as StdResult;
+use thiserror::Error;
 
-extern crate ipset_lookup;
-use crate::ipset_lookup::lookup::LookupSets;
+#[cfg(feature = "update")]
+#[derive(Error, Debug)]
+enum GitError {
+    #[error("failed to clone repository")]
+    Repository(#[from] git2::Error),
+    #[error("io error")]
+    Io(#[from] std::io::Error),
+}
+
+use ipset_lookup::lookup::LookupSets;
 
 #[cfg(feature = "bench")]
-use crate::ipset_lookup::lookup::test_speed;
+use ipset_lookup::lookup::test_speed;
 
 fn app_params<'a, 'b>() -> App<'a, 'b> {
     #[allow(unused_mut)]
@@ -66,83 +77,92 @@ fn app_params<'a, 'b>() -> App<'a, 'b> {
 }
 
 #[cfg(feature = "update")]
-fn update_command(_: &ArgMatches) {
-    use git2::Repository;
+fn update_command(_: &ArgMatches) -> StdResult<(), GitError> {
+    use git2::{Repository, ResetType};
 
     let url = "https://github.com/firehol/blocklist-ipsets.git";
-    let repo = match Repository::open("blocklist-ipsets") {
+    let path = r#"blocklist-ipsets"#;
+    let repo = match Repository::open(path) {
         Ok(repo) => repo,
-        Err(e1) => match Repository::clone(url, "blocklist-ipsets") {
+        Err(e1) => match Repository::clone(url, path) {
             Ok(repo) => repo,
             Err(e2) => panic!("failed to clone: {} and {}", e1, e2),
         },
     };
+    repo.reset(&repo.revparse_single("HEAD")?, ResetType::Hard, None)?;
 
-    match repo.checkout_head(None) {
-        Ok(_) => {}
-        Err(e) => panic!("git checkout error: {}", e),
-    };
+    repo.find_remote("origin")?.fetch(&["master"], None, None)?;
+
+    let fetch_head = repo.find_reference("FETCH_HEAD")?;
+    let fetch_commit = repo.reference_to_annotated_commit(&fetch_head)?;
+    let analysis = repo.merge_analysis(&[&fetch_commit])?;
+    if analysis.0.is_up_to_date() {
+        Ok(())
+    } else {
+        let refname = format!("refs/heads/{}", "master");
+        let mut reference = repo.find_reference(&refname)?;
+        reference.set_target(fetch_commit.id(), "Fast-Forward")?;
+        repo.set_head(&refname)?;
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .map_err(GitError::Repository)
+    }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let app = app_params();
 
     let m = app.get_matches();
     //    println!("{:?}", m);
 
-    let globfiles = if m.is_present("glob") {
-        m.value_of("glob").unwrap()
-    } else {
-        "blocklist-ipsets/**/*.*set"
-    };
+    let globfiles = m.value_of("glob").unwrap_or("blocklist-ipsets/**/*.*set");
 
     match m.subcommand() {
         ("lookup", Some(sub_m)) => {
-            let ipsets = LookupSets::new(globfiles);
+            let ipsets = LookupSets::new(globfiles)?;
 
-            if sub_m.is_present("file") {
-                let files: Vec<_> = sub_m.values_of("file").unwrap().collect();
+            if let Some(files) = sub_m.values_of("file") {
+                let files: Vec<_> = files.collect();
                 for path in files {
                     let file = File::open(path)?;
                     let buffered = BufReader::new(file);
                     let data = buffered
                         .lines()
-                        .map(|l| l.unwrap())
+                        .map(|l| l.expect("could not read line"))
                         .filter(|l| !l.starts_with('#'))
                         .map(|l| l.parse().expect("invalid ip"));
                     for ip in data {
                         let result = ipsets.lookup_by_ip(ip);
-                        println!(r#"{{"ip":"{}", "feeds":{:?}}}"#, ip, result);
+                        println!(r#"{{"ip":"{ip}", "feeds":{result:?}}}"#);
                     }
                 }
             }
-            if sub_m.is_present("ip") {
-                let ips: Vec<_> = sub_m.values_of("ip").unwrap().collect();
+            if let Some(ips) = sub_m.values_of("ip") {
+                let ips: Vec<_> = ips.collect();
                 let ips: Vec<Ipv4Addr> = ips
                     .iter()
                     .map(|ip| ip.parse().expect("invalid ip address"))
                     .collect();
                 for ip in ips {
                     let result = ipsets.lookup_by_ip(ip);
-                    println!(r#"{{"ip":"{}", "feeds":{:?}}}"#, ip, result);
+                    println!(r#"{{"ip":"{ip}", "feeds":{result:?}}}"#);
                 }
             }
-            if sub_m.is_present("net") {
-                let nets: Vec<_> = sub_m.values_of("net").unwrap().collect();
+            if let Some(nets) = sub_m.values_of("net") {
+                let nets: Vec<_> = nets.collect();
                 let nets: Vec<Ipv4Network> = nets
                     .iter()
                     .map(|ip| ip.parse().expect("invalid net"))
                     .collect();
                 for net in nets {
                     let result = ipsets.lookup_by_net(net);
-                    println!(r#"{{"ip":"{}", "feeds":{:?}}}"#, net, result);
+                    println!(r#"{{"ip":"{net}", "feeds":{result:?}}}"#);
                 }
             }
         }
         #[cfg(feature = "bench")]
         ("bench", Some(_)) => test_speed(globfiles),
         #[cfg(feature = "update")]
-        ("update", Some(sub_m)) => update_command(sub_m),
+        ("update", Some(sub_m)) => update_command(sub_m)?,
         _ => {}
     }
     Ok(())

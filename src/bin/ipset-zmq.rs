@@ -1,10 +1,8 @@
+use anyhow::Result;
 use clap::{crate_authors, crate_version, App, Arg};
-use std::net::Ipv4Addr;
+use ipset_lookup::lookup::LookupSets;
 use std::thread;
-use zmq;
-
-extern crate ipset_lookup;
-use crate::ipset_lookup::lookup::LookupSets;
+use std::{net::Ipv4Addr, sync::Arc};
 
 fn app_params<'a, 'b>() -> App<'a, 'b> {
     #[allow(unused_mut)]
@@ -21,7 +19,7 @@ fn app_params<'a, 'b>() -> App<'a, 'b> {
     app
 }
 
-fn worker(context: &zmq::Context, lookupsets: &LookupSets) {
+fn worker(context: &zmq::Context, lookupsets: Arc<LookupSets>) -> ! {
     let receiver = context.socket(zmq::REP).unwrap();
     receiver
         .connect("inproc://workers")
@@ -36,7 +34,7 @@ fn worker(context: &zmq::Context, lookupsets: &LookupSets) {
 
         let feeds: Vec<_> = lookupsets.lookup_by_ip(ip);
 
-        let out = format!(r#"{{"ip":"{}", "feeds":{:?}}}"#, ip, feeds);
+        let out = format!(r#"{{"ip":"{ip}", "feeds":{feeds:?}}}"#);
 
         receiver.send(&out, 0).unwrap();
     }
@@ -54,15 +52,16 @@ pub fn serve(lookupsets: LookupSets) {
         .bind("inproc://workers")
         .expect("failed to bind worker dealer");
 
+    let lookupsets_arc = Arc::new(lookupsets);
     for _ in 0..8 {
         let ctx = context.clone();
-        let lookupsets = lookupsets.clone();
-        thread::spawn(move || worker(&ctx, &lookupsets));
+        let ls = lookupsets_arc.clone();
+        thread::spawn(move || worker(&ctx, ls));
     }
     zmq::proxy(&clients, &workers).expect("failed proxying");
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let app = app_params();
 
     let m = app.get_matches();
@@ -73,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "blocklist-ipsets/**/*.*set"
     };
 
-    let ipsets = LookupSets::new(globfiles);
+    let ipsets = LookupSets::new(globfiles)?;
 
     serve(ipsets);
 
