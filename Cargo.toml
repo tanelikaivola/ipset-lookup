@@ -18,7 +18,7 @@ default-run = "ipset"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["bench"]
+default = ["bench", "update"]
 bench = []
 update = ["git2"]
 microservice = ["zmq"]
