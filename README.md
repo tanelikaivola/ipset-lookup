@@ -100,4 +100,5 @@ ipset-lookup has some optional features
 - `update`: provides update subcommand which is a git client that can update feeds (currently https://github.com/firehol/blocklist-ipsets/)
 - `bench`: provides bench subcommand which includes benchmarking functionality
 - `microservice`: provides ipset-zmq microservice executable
+- `vendored-zmq`: zmq is provided as vendored build
 - `windows-all`: compiles all the parts that are likely to compile on a Windows machine
