@@ -23,6 +23,7 @@ bench = []
 update = ["git2"]
 microservice = ["zmq"]
 windows-all = ["bench", "update"]
+vendored-zmq = ["zmq/vendored"]
 
 [dependencies]
 glob = "0.3.0"
