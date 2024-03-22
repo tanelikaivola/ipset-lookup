@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 
 use glob::glob;
-use ipnetwork::Ipv4Network;
+use ipnetwork::{IpNetworkError, Ipv4Network};
 use rayon::prelude::*;
-use std::fmt;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
+use std::{fmt, net::AddrParseError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -18,6 +18,10 @@ pub enum Error {
     GlobError(#[from] glob::GlobError),
     #[error("IO error")]
     Io(#[from] std::io::Error),
+    #[error("IP Network parse error")]
+    IpNetworkError(#[from] IpNetworkError),
+    #[error("Parsing IP address failed")]
+    AddrParseError(#[from] AddrParseError),
 }
 
 pub trait Lookup {
@@ -99,17 +103,15 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
         .filter(|l| !l.starts_with('#'));
     let (nets, ips): (Vec<_>, Vec<_>) = lines.partition(|l| l.contains('/'));
 
-    let nets: Vec<Ipv4Network> = nets
+    let nets = nets
         .iter()
         .map(|l| l.parse())
-        .filter_map(Result::ok) // TODO: errors ignored, collect statistics
-        .collect();
+        .collect::<Result<Vec<Ipv4Network>, IpNetworkError>>()?;
 
     let ips: Vec<Ipv4Addr> = ips
         .iter()
         .map(|l| l.parse())
-        .filter_map(Result::ok) // TODO: errors ignored, collect statistics
-        .collect();
+        .collect::<Result<Vec<Ipv4Addr>, AddrParseError>>()?;
 
     let name = path
         .file_stem()
