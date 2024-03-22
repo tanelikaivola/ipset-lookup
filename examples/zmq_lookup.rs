@@ -1,5 +1,7 @@
 use anyhow::{Error, Result};
 use std::time::Instant;
+
+#[cfg(feature = "zmq")]
 fn main() -> Result<()> {
     let context = zmq::Context::new();
     let t0 = Instant::now();
@@ -12,4 +14,9 @@ fn main() -> Result<()> {
     let elapsed = t0.elapsed().as_secs_f64();
     println!("Elapsed: {elapsed} s");
     Ok(())
+}
+
+#[cfg(not(feature = "zmq"))]
+fn main() {
+    compile_error!("Enable zmq feature to compile this example")
 }

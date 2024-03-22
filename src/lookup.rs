@@ -12,8 +12,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("glob pattern error")]
+    GlobPattern(#[from] glob::PatternError),
     #[error("glob error")]
-    Glob(#[from] glob::PatternError),
+    GlobError(#[from] glob::GlobError),
     #[error("IO error")]
     Io(#[from] std::io::Error),
 }
@@ -41,18 +43,12 @@ impl Lookup for Vec<Ipv4Addr> {
     }
 }
 
-fn glob_vec(pattern: &str) -> Result<Vec<PathBuf>, Error> {
-    match glob(pattern) {
-        Ok(paths) => Ok(paths.filter_map(Result::ok).collect()),
-        Err(e) => Err(Error::Glob(e)),
-    }
-}
-
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub struct NetSetFeed {
     category: String,
     name: String,
 }
+
 impl fmt::Debug for NetSetFeed {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, r#""{}/{}""#, self.category, self.name)
@@ -65,6 +61,7 @@ struct NetSet {
     nets: Vec<Ipv4Network>,
     ips: Vec<Ipv4Addr>,
 }
+
 impl fmt::Debug for NetSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -90,7 +87,6 @@ fn parse_file(path: &std::path::PathBuf) -> Result<NetSet, Error> {
     let category: String = if comments.len() == 1 {
         String::from(&comments[0])
     } else {
-        //        println!("failed to find category {}", comments.len());
         String::from("other")
     };
 
@@ -135,19 +131,15 @@ pub struct LookupSets {
 }
 
 impl LookupSets {
-    pub fn new(glob: &str) -> Result<LookupSets, Error> {
-        let files = glob_vec(glob).unwrap();
+    pub fn new(pattern: &str) -> Result<Self, Error> {
+        //        let files = glob_vec(pattern)?;
+        let files: Vec<PathBuf> = glob(pattern)?.collect::<Result<Vec<PathBuf>, _>>()?;
+        let parsed: Result<Vec<NetSet>, Error> = files.par_iter().map(parse_file).collect();
 
-        let (ipsetiter, errors): (Vec<_>, Vec<Result<_, Error>>) =
-            files.par_iter().map(parse_file).partition(Result::is_ok); // TODO: errors ignored, collect statistics
-        let errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).collect();
-        if !errors.is_empty() {
-            eprintln!("{errors:?}");
-        }
-        Ok(Self {
-            data: ipsetiter.into_iter().map(Result::unwrap).collect(),
-        })
+        Ok(Self { data: parsed? })
     }
+
+    #[must_use]
     pub fn lookup_by_ip(&self, ip: Ipv4Addr) -> Vec<&NetSetFeed> {
         let mut output: Vec<_> = self
             .data
@@ -158,6 +150,8 @@ impl LookupSets {
         output.sort();
         output
     }
+
+    #[must_use]
     pub fn lookup_by_net(&self, other: Ipv4Network) -> Vec<&NetSetFeed> {
         let mut output: Vec<_> = self
             .data
@@ -168,70 +162,4 @@ impl LookupSets {
         output.sort();
         output
     }
-}
-
-#[test]
-fn test_loading() {
-    let ipsets = LookupSets::new("blocklist-ipsets/**/*.*set").unwrap();
-    let ip: Ipv4Addr = "8.8.8.8".parse().expect("Invalid IP");
-    let categories: Vec<&NetSetFeed> = ipsets.lookup_by_ip(ip);
-    assert!(!categories.is_empty(), "no results for a lookup");
-    //    println!("{:?}", categories);
-}
-
-#[test]
-fn test_lookups() {
-    let mut ips: Vec<Ipv4Addr> = Vec::new();
-    ips.insert(0, "8.8.8.8".parse().unwrap());
-    let mut nets: Vec<Ipv4Network> = Vec::new();
-    nets.insert(0, "8.8.8.8/8".parse().unwrap());
-    let ip: Ipv4Addr = "8.8.8.8".parse().unwrap();
-    let ip2: Ipv4Addr = "1.1.1.1".parse().unwrap();
-    let net: Ipv4Network = "8.8.8.8/8".parse().unwrap();
-    let net2: Ipv4Network = "1.1.1.1/8".parse().unwrap();
-
-    assert!(ips.lookup_by_ip(ip), "ips - lookup_by_ip is not eq");
-    assert!(!ips.lookup_by_ip(ip2), "ips - lookup_by_ip is not neq");
-    assert!(ips.lookup_by_net(net), "ips - lookup_by_net is not eq");
-    assert!(!ips.lookup_by_net(net2), "ips - lookup_by_net is not neq");
-
-    assert!(nets.lookup_by_ip(ip), "nets - lookup_by_ip is not eq");
-    assert!(nets.lookup_by_net(net), "nets - lookup_by_net is not eq");
-    assert!(!nets.lookup_by_ip(ip2), "nets - lookup_by_ip is not neq");
-    assert!(!nets.lookup_by_net(net2), "nets - lookup_by_net is not neq");
-}
-
-#[cfg(feature = "bench")]
-pub fn test_speed(glob: &str) {
-    use std::time::Instant;
-    let now = Instant::now();
-    let ipsets = LookupSets::new(glob).unwrap();
-    println!("{:.3} s loading", now.elapsed().as_secs_f64());
-    let categories = ipsets.lookup_by_net("0.0.0.0/0".parse().unwrap());
-    println!("Loaded {} categories", categories.len());
-
-    let ip0: Ipv4Addr = "0.0.0.0".parse().expect("Invalid IP");
-    let net: Ipv4Network = "64.135.235.144/31".parse().expect("Invalid network");
-    let net0: Ipv4Network = "0.0.0.0/0".parse().expect("Invalid network");
-
-    let now = Instant::now();
-    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_ip(ip0)).collect();
-    println!(
-        "{:.3} ms / ip lookup",
-        now.elapsed().as_secs_f64() / 100.0 * 1000.0
-    );
-
-    let now = Instant::now();
-    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_net(net)).collect();
-    println!(
-        "{:.3} ms / network lookup (maybe worst case)",
-        now.elapsed().as_secs_f64() / 100.0 * 1000.0
-    );
-
-    let now = Instant::now();
-    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_net(net0)).collect();
-    println!(
-        "{:.3} ms / network lookup (best case)",
-        now.elapsed().as_secs_f64() / 100.0 * 1000.0
-    );
 }

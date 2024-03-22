@@ -20,9 +20,6 @@ enum GitError {
 
 use ipset_lookup::lookup::LookupSets;
 
-#[cfg(feature = "bench")]
-use ipset_lookup::lookup::test_speed;
-
 fn app_params<'a, 'b>() -> App<'a, 'b> {
     #[allow(unused_mut)]
     let mut app = App::new("ipset-lookup")
@@ -81,7 +78,7 @@ fn update_command(_: &ArgMatches) -> StdResult<(), GitError> {
     use git2::{Repository, ResetType};
 
     let url = "https://github.com/firehol/blocklist-ipsets.git";
-    let path = r#"blocklist-ipsets"#;
+    let path = r"blocklist-ipsets";
     let repo = match Repository::open(path) {
         Ok(repo) => repo,
         Err(e1) => match Repository::clone(url, path) {
@@ -166,4 +163,39 @@ fn main() -> Result<()> {
         _ => {}
     }
     Ok(())
+}
+
+#[cfg(feature = "bench")]
+pub fn test_speed(glob: &str) {
+    use std::time::Instant;
+    let now = Instant::now();
+    let ipsets = LookupSets::new(glob).unwrap();
+    println!("{:.3} s loading", now.elapsed().as_secs_f64());
+    let categories = ipsets.lookup_by_net("0.0.0.0/0".parse().unwrap());
+    println!("Loaded {} categories", categories.len());
+
+    let ip0: Ipv4Addr = "0.0.0.0".parse().expect("Invalid IP");
+    let net: Ipv4Network = "64.135.235.144/31".parse().expect("Invalid network");
+    let net0: Ipv4Network = "0.0.0.0/0".parse().expect("Invalid network");
+
+    let now = Instant::now();
+    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_ip(ip0)).collect();
+    println!(
+        "{:.3} ms / ip lookup",
+        now.elapsed().as_secs_f64() / 100.0 * 1000.0
+    );
+
+    let now = Instant::now();
+    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_net(net)).collect();
+    println!(
+        "{:.3} ms / network lookup (maybe worst case)",
+        now.elapsed().as_secs_f64() / 100.0 * 1000.0
+    );
+
+    let now = Instant::now();
+    let _x: Vec<_> = (1..100).map(|_x| ipsets.lookup_by_net(net0)).collect();
+    println!(
+        "{:.3} ms / network lookup (best case)",
+        now.elapsed().as_secs_f64() / 100.0 * 1000.0
+    );
 }

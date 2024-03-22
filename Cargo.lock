@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "ipset_lookup"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "anyhow",
  "clap",
