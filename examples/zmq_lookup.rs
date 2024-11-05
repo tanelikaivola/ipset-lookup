@@ -18,5 +18,5 @@ fn main() -> Result<()> {
 
 #[cfg(not(feature = "zmq"))]
 fn main() {
-    compile_error!("Enable zmq feature to compile this example")
+    panic!("Enable zmq feature to compile this example")
 }
