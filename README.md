@@ -69,12 +69,14 @@ OPTIONS:
 
 ## Installation
 
-The main binary name for ipset-lookup is `ipset`. ZeroMQ microservice executable is `ipset-zmq`.
+The main binary name for ipset-lookup is `ipset`. ZeroMQ microservice executable is `ipset-zmq` (if enabled).
 
 No prebuild binaries are available currently.
 
+Use one of:
 ```
-$ cargo install --all-features ipset_lookup
+cargo install ipset_lookup --locked
+cargo install --all-features ipset_lookup --locked
 ```
 
 ## Building
