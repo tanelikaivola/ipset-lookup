@@ -42,6 +42,8 @@ travis-ci = { repository = "tanelikaivola/ipset-lookup", branch = "master" }
 
 [profile.release]
 lto = true
+codegen-units = 1
+panic = "abort"
 
 [[bin]]
 name = "ipset-zmq"
