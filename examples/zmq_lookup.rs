@@ -1,4 +1,6 @@
+#[cfg(feature = "zmq")]
 use anyhow::{Error, Result};
+#[cfg(feature = "zmq")]
 use std::time::Instant;
 
 #[cfg(feature = "zmq")]
