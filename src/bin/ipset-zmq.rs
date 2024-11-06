@@ -1,22 +1,16 @@
 use anyhow::Result;
-use clap::{crate_authors, crate_version, App, Arg};
+use clap::{crate_authors, crate_version, Parser};
 use ipset_lookup::lookup::LookupSets;
 use std::thread;
 use std::{net::Ipv4Addr, sync::Arc};
 
-fn app_params<'a, 'b>() -> App<'a, 'b> {
-    #[allow(unused_mut)]
-    let mut app = App::new("ipset-zmq")
-    .about("Serve ipset data over zmq")
-    .version(crate_version!())
-    .author(crate_authors!())
-    .arg(Arg::with_name("glob")
-        .long("glob")
-        .short("g")
-        .takes_value(true)
-        .empty_values(false)
-        .help("input ipset/netset files, glob syntax (defaults to: blocklist-ipsets/**/*.*set)"));
-    app
+/// Serve ipset data over zmq
+#[derive(Parser, Debug)]
+#[command(name = "ipset-zmq", version = crate_version!(), author = crate_authors!(), about = "Serve ipset data over zmq")]
+struct Cli {
+    /// Input ipset/netset files, glob syntax
+    #[arg(long, short, default_value = "blocklist-ipsets/**/*.*set")]
+    glob: String,
 }
 
 fn worker(context: &zmq::Context, lookupsets: Arc<LookupSets>) -> ! {
@@ -62,17 +56,9 @@ pub fn serve(lookupsets: LookupSets) {
 }
 
 fn main() -> Result<()> {
-    let app = app_params();
+    let cli = Cli::parse();
 
-    let m = app.get_matches();
-
-    let globfiles = if m.is_present("glob") {
-        m.value_of("glob").unwrap()
-    } else {
-        "blocklist-ipsets/**/*.*set"
-    };
-
-    let ipsets = LookupSets::new(globfiles)?;
+    let ipsets = LookupSets::new(&cli.glob)?;
 
     serve(ipsets);
 
