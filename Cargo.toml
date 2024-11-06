@@ -13,6 +13,7 @@ ipset_lookup includes the same functionality as a library.
 """
 readme = "README.md"
 categories = ["command-line-utilities", "text-processing"]
+keywords = ["blocklists", "threat-feed", "threat-intel", "cti"]
 default-run = "ipset"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
