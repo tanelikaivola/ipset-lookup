@@ -1,7 +1,5 @@
 use anyhow::Result;
-#[cfg(feature = "update")]
-use clap::ArgMatches;
-use clap::{crate_authors, crate_version, App, Arg, ArgGroup, SubCommand};
+use clap::{ArgGroup, Parser, Subcommand};
 use ipnetwork::Ipv4Network;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -20,61 +18,54 @@ enum GitError {
 
 use ipset_lookup::lookup::LookupSets;
 
-fn app_params<'a, 'b>() -> App<'a, 'b> {
-    #[allow(unused_mut)]
-    let mut app = App::new("ipset-lookup")
-    .about("Fast lookup through ipset data")
-    .version(crate_version!())
-    .author(crate_authors!())
-    .arg(Arg::with_name("glob").group("input")
-        .long("glob")
-        .short("g")
-        .takes_value(true)
-        .empty_values(false)
-        .global(true)
-        .help("input ipset/netset files, glob syntax (defaults to: blocklist-ipsets/**/*.*set)"))
-    .subcommand(SubCommand::with_name("lookup")
-        .about("run a lookup")
-        .group(ArgGroup::with_name("input"))
-        .group(ArgGroup::with_name("find").multiple(true).required(true))
-        .group(ArgGroup::with_name("output"))
-        .arg(Arg::with_name("file").group("find")
-            .long("file")
-            .short("f")
-            .takes_value(true)
-            .multiple(true)
-            .empty_values(false)
-            .help("compare to a list of IPs in a file"))
-        .arg(Arg::with_name("ip").group("find")
-            .long("ip")
-            .short("i")
-            .takes_value(true)
-            .multiple(true)
-            .empty_values(false)
-            .help("compare to an IP"))
-        .arg(Arg::with_name("net").group("find")
-            .long("net")
-            .short("n")
-            .takes_value(true)
-            .multiple(true)
-            .empty_values(false)
-            .help("compare to a net")));
+/// Fast lookup through ipset data
+#[derive(Parser)]
+#[command(name = "ipset-lookup", version, author)]
+struct Cli {
+    /// Input ipset/netset files, glob syntax
+    #[arg(
+        long,
+        short = 'g',
+        global = true,
+        default_value = "blocklist-ipsets/**/*.*set"
+    )]
+    glob: String,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a lookup
+    #[command(group(
+        ArgGroup::new("find").multiple(true).required(true),
+    ))]
+    Lookup {
+        /// Find IPs in the file from blocklists
+        #[arg(long, short = 'f', group = "find", required = false)]
+        file: Option<Vec<String>>,
+
+        /// Find an IP on any of the blocklists
+        #[arg(long, short = 'i', group = "find", required = false)]
+        ip: Option<Vec<String>>,
+
+        /// Find any IP in the network on any of the blocklists
+        #[arg(long, short = 'n', group = "find", required = false)]
+        net: Option<Vec<String>>,
+    },
 
     #[cfg(feature = "bench")]
-    {
-        app = app.subcommand(SubCommand::with_name("bench").about("run a quick benchmark"));
-    }
+    /// Run a quick benchmark
+    Bench,
 
     #[cfg(feature = "update")]
-    {
-        app = app.subcommand(SubCommand::with_name("update").about("update ipsets"));
-    }
-
-    app
+    /// Update blocklist-ipsets in current directory
+    Update,
 }
 
 #[cfg(feature = "update")]
-fn update_command(_: &ArgMatches) -> StdResult<(), GitError> {
+fn update_command() -> StdResult<(), GitError> {
     use git2::{Repository, ResetType};
 
     let url = "https://github.com/firehol/blocklist-ipsets.git";
@@ -106,19 +97,15 @@ fn update_command(_: &ArgMatches) -> StdResult<(), GitError> {
 }
 
 fn main() -> Result<()> {
-    let app = app_params();
+    let cli = Cli::parse();
 
-    let m = app.get_matches();
-    //    println!("{:?}", m);
+    let globfiles = &cli.glob;
 
-    let globfiles = m.value_of("glob").unwrap_or("blocklist-ipsets/**/*.*set");
-
-    match m.subcommand() {
-        ("lookup", Some(sub_m)) => {
+    match &cli.command {
+        Commands::Lookup { file, ip, net } => {
             let ipsets = LookupSets::new(globfiles)?;
 
-            if let Some(files) = sub_m.values_of("file") {
-                let files: Vec<_> = files.collect();
+            if let Some(files) = file {
                 for path in files {
                     let file = File::open(path)?;
                     let buffered = BufReader::new(file);
@@ -133,8 +120,7 @@ fn main() -> Result<()> {
                     }
                 }
             }
-            if let Some(ips) = sub_m.values_of("ip") {
-                let ips: Vec<_> = ips.collect();
+            if let Some(ips) = ip {
                 let ips: Vec<Ipv4Addr> = ips
                     .iter()
                     .map(|ip| ip.parse().expect("invalid ip address"))
@@ -144,8 +130,7 @@ fn main() -> Result<()> {
                     println!(r#"{{"ip":"{ip}", "feeds":{result:?}}}"#);
                 }
             }
-            if let Some(nets) = sub_m.values_of("net") {
-                let nets: Vec<_> = nets.collect();
+            if let Some(nets) = net {
                 let nets: Vec<Ipv4Network> = nets
                     .iter()
                     .map(|ip| ip.parse().expect("invalid net"))
@@ -157,10 +142,9 @@ fn main() -> Result<()> {
             }
         }
         #[cfg(feature = "bench")]
-        ("bench", Some(_)) => test_speed(globfiles),
+        Commands::Bench => test_speed(globfiles),
         #[cfg(feature = "update")]
-        ("update", Some(sub_m)) => update_command(sub_m)?,
-        _ => {}
+        Commands::Update => update_command()?,
     }
     Ok(())
 }
